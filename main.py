@@ -16,6 +16,7 @@ import os
 import sys
 import time
 import random
+import subprocess
 import pandas as pd
 from rich.console import Console
 from rich.panel import Panel
@@ -52,6 +53,56 @@ BANNER = """
  ╚══════════════════════════════════════════════════════════════╝
 [/bold cyan]
 """
+
+
+def _run_git(args: list[str]) -> bool:
+    """Ejecuta un comando git en el directorio del proyecto."""
+    repo_dir = os.path.dirname(os.path.abspath(__file__))
+    try:
+        result = subprocess.run(
+            ["git"] + args,
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode == 0:
+            return True
+        console.print(f"[yellow]⚠ git {' '.join(args)}: {result.stderr.strip()}[/yellow]")
+        return False
+    except Exception as e:
+        console.print(f"[yellow]⚠ No se pudo ejecutar git: {e}[/yellow]")
+        return False
+
+
+def sincronizar_desde_remoto():
+    """Descarga los últimos cambios del repositorio remoto (contactados actualizados)."""
+    console.print("[cyan]🔄 Sincronizando historial de contactados desde el repositorio remoto...[/cyan]")
+    ok = _run_git(["pull", "--rebase", "origin", "main"])
+    if ok:
+        console.print("[green]✅ Historial actualizado.[/green]")
+    else:
+        console.print("[yellow]⚠ No se pudo sincronizar — se usará historial local.[/yellow]")
+
+
+def subir_contactados_a_remoto():
+    """Sube contactados.csv e historico_contactos.csv al repositorio remoto."""
+    archivos = [config.ARCHIVO_CONTACTADOS, config.ARCHIVO_HISTORICO]
+    existentes = [f for f in archivos if os.path.exists(f)]
+    if not existentes:
+        return
+
+    console.print("\n[cyan]☁️  Subiendo historial de contactados al repositorio remoto...[/cyan]")
+
+    _run_git(["add"] + existentes)
+    fecha = time.strftime("%Y-%m-%d %H:%M")
+    _run_git(["commit", "-m", f"chore: actualizar contactados [{fecha}]"])
+    ok = _run_git(["push", "origin", "main"])
+
+    if ok:
+        console.print("[green]✅ Historial de contactados subido al repositorio.[/green]")
+    else:
+        console.print("[yellow]⚠ No se pudo subir al repositorio (lo intentarás la próxima vez).[/yellow]")
 
 
 def mostrar_config():
@@ -142,6 +193,10 @@ def busqueda_automatica_limitada() -> list[dict]:
 def main():
     """Flujo principal 100% automático."""
     console.print(BANNER)
+
+    # ── Sincronizar historial desde el repositorio remoto ──────────
+    sincronizar_desde_remoto()
+
     mostrar_config()
 
     # ── PASO 1: Buscar nuevos prospectos (solo los no contactados) ──
@@ -204,6 +259,9 @@ def main():
         # Guardar resultado final
         exportar_csv(nuevos)
         exportar_excel(nuevos)
+
+        # ── PASO 5: Subir historial al repositorio remoto ──
+        subir_contactados_a_remoto()
 
         # Mostrar resumen
         enviados = len([p for p in nuevos if p.get("Estado") == "Enviado"])

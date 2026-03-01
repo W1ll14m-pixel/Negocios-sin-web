@@ -99,9 +99,9 @@ PLANTILLA_MENSAJE = (
     "✅ Diseño moderno y adaptado a celulares\n"
     "✅ Aparece en Google cuando busquen su negocio\n"
     "✅ Catálogo de productos/servicios\n"
-    "✅ Botón de contacto directo por WhatsApp\n\n"
-    "💰 El precio es *totalmente negociable* y se ajusta "
-    "a las necesidades de su negocio.\n\n"
+    "✅ Botón de contacto directo por WhatsApp\n"
+    "✅ *Incluye subida al internet* (hosting)\n\n"
+    "💰 Precio: *500 Bs* (negociable) — todo incluido.\n\n"
     "¿Les interesaría que les muestre algunos ejemplos? 😊"
 )
 
