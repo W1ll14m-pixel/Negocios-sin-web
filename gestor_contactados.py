@@ -136,14 +136,50 @@ def marcar_como_contactados(prospectos: list[dict]):
     df_historico.to_csv(config.ARCHIVO_HISTORICO, index=False, encoding='utf-8-sig')
 
 
+def contar_enviados_hoy() -> int:
+    """
+    Cuenta cuántos mensajes se enviaron EXITOSAMENTE hoy.
+    Lee el histórico y filtra por fecha de hoy y estado 'Enviado'.
+    """
+    if not os.path.exists(config.ARCHIVO_HISTORICO):
+        return 0
+
+    try:
+        df = pd.read_csv(config.ARCHIVO_HISTORICO, encoding='utf-8-sig')
+        hoy = datetime.now().strftime("%Y-%m-%d")
+        # Filtrar por fecha de hoy Y estado enviado (no fallidos)
+        df['Fecha_Envio'] = df['Fecha_Envio'].astype(str)
+        enviados_hoy = df[
+            (df['Fecha_Envio'].str.startswith(hoy)) &
+            (df['Estado'].astype(str).str.startswith('Enviado'))
+        ]
+        return len(enviados_hoy)
+    except Exception:
+        return 0
+
+
+def calcular_faltantes_hoy() -> int:
+    """
+    Calcula cuántos mensajes faltan para completar la meta diaria.
+    """
+    enviados = contar_enviados_hoy()
+    faltantes = max(0, config.MENSAJES_DIARIOS_META - enviados)
+    return faltantes
+
+
 def obtener_estadisticas() -> dict:
     """
     Retorna estadísticas de contactos.
     """
     contactados = cargar_contactados()
+    enviados_hoy = contar_enviados_hoy()
+    faltantes_hoy = calcular_faltantes_hoy()
 
     stats = {
         "total_contactados": len(contactados),
+        "enviados_hoy": enviados_hoy,
+        "faltantes_hoy": faltantes_hoy,
+        "meta_diaria": config.MENSAJES_DIARIOS_META,
         "archivo_contactados": config.ARCHIVO_CONTACTADOS,
         "archivo_historico": config.ARCHIVO_HISTORICO,
     }

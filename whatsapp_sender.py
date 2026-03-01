@@ -13,7 +13,6 @@ from datetime import datetime
 from playwright.sync_api import sync_playwright, Page, Browser, BrowserContext
 from playwright.sync_api import TimeoutError as PwTimeout
 from rich.console import Console
-from rich.prompt import Confirm, IntPrompt
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.panel import Panel
 
@@ -258,18 +257,11 @@ def enviar_mensaje_individual(page: Page, telefono: str, mensaje: str) -> dict:
 
 def iniciar_envio_masivo(prospectos: list[dict]) -> list[dict]:
     """
-    Función principal que maneja todo el flujo de envío masivo:
-    1. Abre WhatsApp Web
-    2. Pide vinculación con QR
-    3. Verifica conexión
-    4. Envía mensajes con pausas inteligentes
-    5. Detecta bloqueos y se pausa automáticamente
-    
-    Args:
-        prospectos: Lista de diccionarios con los prospectos.
-    
-    Returns:
-        Lista actualizada con el estado de cada envío.
+    Envío 100% automático sin confirmaciones.
+    1. Abre WhatsApp Web con sesión persistente
+    2. Espera vinculación automáticamente
+    3. Envía todos los mensajes pendientes
+    4. Preserva la sesión para la próxima vez
     """
     if not prospectos:
         console.print("[yellow]⚠ No hay prospectos para enviar.[/yellow]")
@@ -280,40 +272,24 @@ def iniciar_envio_masivo(prospectos: list[dict]) -> list[dict]:
         console.print("[yellow]⚠ Todos los prospectos ya fueron procesados.[/yellow]")
         return prospectos
 
+    max_esta_sesion = min(MAX_MENSAJES_POR_SESION, len(pendientes))
+
     console.print(Panel(
-        "[bold yellow]⚠️  IMPORTANTE — ANTES DE CONTINUAR[/bold yellow]\n\n"
-        "Este módulo enviará mensajes por WhatsApp Web.\n"
-        "Se abrirá un navegador con WhatsApp Web y necesitarás:\n\n"
-        "1. 📱 Escanear el código QR con tu teléfono\n"
-        "2. ⏳ Esperar a que se vincule completamente\n"
-        "3. ✅ Confirmar que ves tus chats\n\n"
-        f"[cyan]Se enviarán máximo {MAX_MENSAJES_POR_SESION} mensajes por sesión.[/cyan]\n"
-        f"[cyan]Pausa entre mensajes: {PAUSA_ENTRE_MENSAJES_MIN}-{PAUSA_ENTRE_MENSAJES_MAX} segundos.[/cyan]\n"
-        f"[cyan]Pausa larga cada {MENSAJES_ANTES_PAUSA_LARGA} mensajes: "
-        f"{PAUSA_LARGA_MIN//60}-{PAUSA_LARGA_MAX//60} minutos.[/cyan]\n\n"
-        f"[bold]Prospectos pendientes: {len(pendientes)}[/bold]",
-        title="WhatsApp Web — Envío de Mensajes",
-        border_style="yellow",
+        f"[bold cyan]📤 ENVÍO AUTOMÁTICO DE MENSAJES[/bold cyan]\n\n"
+        f"Prospectos pendientes: [bold]{len(pendientes)}[/bold]\n"
+        f"Se enviarán: [bold]{max_esta_sesion}[/bold] en esta sesión\n"
+        f"Pausa entre mensajes: {PAUSA_ENTRE_MENSAJES_MIN}-{PAUSA_ENTRE_MENSAJES_MAX}s\n"
+        f"Pausa larga cada {MENSAJES_ANTES_PAUSA_LARGA} mensajes: "
+        f"{PAUSA_LARGA_MIN//60}-{PAUSA_LARGA_MAX//60} min",
+        title="WhatsApp Web — Envío Automático",
+        border_style="cyan",
     ))
 
-    if not Confirm.ask("\n¿Deseas continuar con el envío?"):
-        console.print("[yellow]Envío cancelado.[/yellow]")
-        return prospectos
-
-    # Preguntar cuántos enviar esta sesión
-    max_esta_sesion = IntPrompt.ask(
-        f"\n¿Cuántos mensajes enviar esta sesión? (Recomendado máx {MAX_MENSAJES_POR_SESION})",
-        default=min(MAX_MENSAJES_POR_SESION, len(pendientes))
-    )
-    max_esta_sesion = min(max_esta_sesion, len(pendientes))
-
     with sync_playwright() as pw:
-        # Lanzar navegador con sesión persistente
         console.print("\n[cyan]🌐 Abriendo WhatsApp Web...[/cyan]\n")
-        
-        # Crear directorio de sesión si no existe
+
         os.makedirs(WHATSAPP_SESSION_DIR, exist_ok=True)
-        
+
         context: BrowserContext = pw.chromium.launch_persistent_context(
             WHATSAPP_SESSION_DIR,
             headless=False,
@@ -324,123 +300,97 @@ def iniciar_envio_masivo(prospectos: list[dict]) -> list[dict]:
                 '--no-sandbox',
             ]
         )
-        
+
         page = context.pages[0] if context.pages else context.new_page()
-        
+
         try:
             # 1. Navegar a WhatsApp Web
             page.goto("https://web.whatsapp.com", timeout=config.TIMEOUT_PAGINA)
-            
-            # 2. Esperar vinculación
+
+            # 2. Esperar vinculación automáticamente
             console.print(Panel(
-                "[bold green]📱 ESCANEA EL CÓDIGO QR[/bold green]\n\n"
-                "1. Abre WhatsApp en tu teléfono\n"
-                "2. Ve a Configuración > Dispositivos vinculados\n"
-                "3. Toca 'Vincular un dispositivo'\n"
-                "4. Escanea el código QR que aparece en el navegador\n\n"
-                "[dim]Si ya estás vinculado, espera a que carguen tus chats...[/dim]",
+                "[bold green]📱 ESPERANDO VINCULACIÓN[/bold green]\n\n"
+                "Si ya estás vinculado, cargará automáticamente.\n"
+                "Si no, escanea el QR con tu teléfono.",
                 title="Vinculación",
                 border_style="green",
             ))
-            
-            # Esperar hasta que el usuario confirme
+
             vinculado = False
-            intentos_verificacion = 0
-            max_intentos = 60  # 5 minutos máximo de espera (cada 5s)
-            
-            while not vinculado and intentos_verificacion < max_intentos:
+            max_intentos = 60  # 5 minutos
+            for intento in range(max_intentos):
                 time.sleep(5)
                 vinculado = verificar_vinculacion(page)
-                intentos_verificacion += 1
-                
-                if not vinculado and intentos_verificacion % 6 == 0:  # Cada 30s
-                    console.print("[yellow]⏳ Esperando vinculación... "
-                                  "Escanea el QR si aún no lo has hecho.[/yellow]")
-            
+                if vinculado:
+                    break
+                if intento > 0 and intento % 6 == 0:
+                    console.print("[yellow]⏳ Esperando vinculación...[/yellow]")
+
             if not vinculado:
-                console.print("[red]❌ No se pudo verificar la vinculación después de 5 minutos.[/red]")
-                if not Confirm.ask("¿Deseas continuar de todas formas?"):
-                    context.close()
-                    return prospectos
-            
-            console.print("\n[bold green]✅ ¡WhatsApp Web vinculado correctamente![/bold green]\n")
+                console.print("[red]❌ No se vinculó WhatsApp Web después de 5 minutos.[/red]")
+                context.close()
+                return prospectos
+
+            console.print("\n[bold green]✅ WhatsApp Web vinculado.[/bold green]\n")
             time.sleep(3)
-            
-            # 3. VERIFICACIÓN FINAL antes de enviar
-            console.print("[cyan]🔒 Verificación final de conexión...[/cyan]")
+
+            # 3. Verificación final
+            console.print("[cyan]🔒 Verificando conexión...[/cyan]")
             if not verificar_vinculacion(page):
-                console.print("[red]❌ La verificación final falló. WhatsApp Web no parece estar activo.[/red]")
-                if not Confirm.ask("¿Continuar de todas formas?"):
-                    context.close()
-                    return prospectos
-            
+                console.print("[red]❌ Verificación final falló.[/red]")
+                context.close()
+                return prospectos
+
             console.print("[green]✅ Conexión verificada. Iniciando envío...[/green]\n")
-            
+
             # 4. Enviar mensajes
             enviados = 0
             fallidos = 0
             bloqueado = False
-            
+
             for i, prospecto in enumerate(prospectos):
                 if prospecto.get("Estado") != "Pendiente":
                     continue
-                    
+
                 if enviados >= max_esta_sesion:
-                    console.print(f"\n[yellow]⚠ Se alcanzó el límite de {max_esta_sesion} "
-                                  f"mensajes para esta sesión.[/yellow]")
+                    console.print(f"\n[yellow]⚠ Límite de sesión alcanzado: {max_esta_sesion}[/yellow]")
                     break
-                
+
                 # Verificar bloqueo
                 if detectar_bloqueo(page):
                     bloqueado = True
                     console.print(Panel(
                         "[bold red]🚫 BLOQUEO DETECTADO[/bold red]\n\n"
-                        "WhatsApp ha limitado el envío de mensajes.\n"
-                        "El sistema se pondrá en PAUSA AUTOMÁTICA.\n\n"
-                        f"[cyan]Se reintentará en {PAUSA_ENTRE_SESIONES//60} minutos...[/cyan]\n"
-                        f"[dim]Mensajes enviados esta sesión: {enviados}[/dim]\n"
-                        f"[dim]Mensajes fallidos: {fallidos}[/dim]",
-                        title="⚠️ Pausa de Seguridad",
+                        f"Se pausa {PAUSA_ENTRE_SESIONES//60} minutos...\n"
+                        f"Enviados hasta ahora: {enviados}",
                         border_style="red",
                     ))
-                    
-                    _pausa_humana(
-                        PAUSA_ENTRE_SESIONES,
-                        PAUSA_ENTRE_SESIONES + 600,
-                        "Pausa por bloqueo detectado."
-                    )
-                    
-                    # Verificar si se resolvió
+                    _pausa_humana(PAUSA_ENTRE_SESIONES, PAUSA_ENTRE_SESIONES + 600, "Pausa por bloqueo")
                     page.goto("https://web.whatsapp.com", timeout=config.TIMEOUT_PAGINA)
                     time.sleep(10)
-                    
                     if detectar_bloqueo(page):
-                        console.print("[red]❌ El bloqueo persiste. Deteniendo envío.[/red]")
+                        console.print("[red]❌ Bloqueo persiste. Deteniendo.[/red]")
                         break
-                    else:
-                        console.print("[green]✅ Bloqueo resuelto. Continuando...[/green]")
-                        bloqueado = False
-                
+                    bloqueado = False
+
                 nombre = prospecto.get("Nombre", "???")
                 telefono = prospecto.get("Telefono_Limpio", "")
                 mensaje = prospecto.get("Mensaje", "")
-                
+
                 console.print(f"\n[cyan]📤 [{enviados + 1}/{max_esta_sesion}] "
                               f"Enviando a: [bold]{nombre}[/bold] ({telefono})[/cyan]")
-                
-                # Verificar que WhatsApp sigue vinculado
+
+                # Re-verificar vinculación cada 3 mensajes
                 if enviados > 0 and enviados % 3 == 0:
-                    # Cada 3 mensajes, volver a verificar vinculación
                     page.goto("https://web.whatsapp.com", timeout=config.TIMEOUT_PAGINA)
                     time.sleep(5)
                     if not verificar_vinculacion(page):
-                        console.print("[red]❌ WhatsApp Web se desvinculó. Deteniendo envío.[/red]")
-                        console.print("[yellow]Vuelve a vincular y ejecuta de nuevo.[/yellow]")
+                        console.print("[red]❌ WhatsApp se desvinculó. Deteniendo.[/red]")
                         break
-                
-                # Enviar mensaje
+
+                # Enviar
                 resultado = enviar_mensaje_individual(page, telefono, mensaje)
-                
+
                 if resultado["exito"]:
                     prospecto["Estado"] = "Enviado"
                     prospecto["Fecha_Envio"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -448,42 +398,34 @@ def iniciar_envio_masivo(prospectos: list[dict]) -> list[dict]:
                     console.print(f"  [green]✅ {resultado['motivo']}[/green]")
                 else:
                     prospecto["Estado"] = f"Fallido: {resultado['motivo']}"
+                    prospecto["Fecha_Envio"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     fallidos += 1
                     console.print(f"  [red]❌ {resultado['motivo']}[/red]")
-                
-                # Pausa entre mensajes
-                if enviados < max_esta_sesion:
-                    # Pausa larga cada N mensajes
-                    if enviados > 0 and enviados % MENSAJES_ANTES_PAUSA_LARGA == 0:
-                        console.print(f"\n[yellow]⏸  Pausa de seguridad (cada {MENSAJES_ANTES_PAUSA_LARGA} mensajes)...[/yellow]")
-                        _pausa_humana(
-                            PAUSA_LARGA_MIN,
-                            PAUSA_LARGA_MAX,
-                            f"Pausa de seguridad ({PAUSA_LARGA_MIN//60}-{PAUSA_LARGA_MAX//60} min)"
-                        )
-                    else:
-                        # Pausa normal entre mensajes
-                        _pausa_humana(
-                            PAUSA_ENTRE_MENSAJES_MIN,
-                            PAUSA_ENTRE_MENSAJES_MAX,
-                            "Pausa entre mensajes"
-                        )
-        
-        # 5. NO cerrar sesión de WhatsApp Web — mantener la sesión para futuras ejecuciones
-        # Esto evita tener que escanear el QR cada vez
-            console.print("\n[cyan]📱 Sesión de WhatsApp preservada para la próxima ejecución.[/cyan]")
 
-            # 6. Resumen final
+                # Pausas
+                if enviados < max_esta_sesion:
+                    if enviados > 0 and enviados % MENSAJES_ANTES_PAUSA_LARGA == 0:
+                        console.print(f"\n[yellow]⏸  Pausa larga (cada {MENSAJES_ANTES_PAUSA_LARGA} mensajes)...[/yellow]")
+                        _pausa_humana(PAUSA_LARGA_MIN, PAUSA_LARGA_MAX,
+                                      f"Pausa seguridad ({PAUSA_LARGA_MIN//60}-{PAUSA_LARGA_MAX//60} min)")
+                    else:
+                        _pausa_humana(PAUSA_ENTRE_MENSAJES_MIN, PAUSA_ENTRE_MENSAJES_MAX,
+                                      "Pausa entre mensajes")
+
+            # 5. Sesión preservada
+            console.print("\n[cyan]📱 Sesión de WhatsApp preservada.[/cyan]")
+
+            # 6. Resumen
             console.print(Panel(
                 f"[bold green]📊 RESUMEN DE ENVÍO[/bold green]\n\n"
                 f"✅ Enviados: {enviados}\n"
                 f"❌ Fallidos: {fallidos}\n"
                 f"⏳ Pendientes: {len([p for p in prospectos if p.get('Estado') == 'Pendiente'])}\n"
-                f"{'🚫 Se detectó bloqueo durante la sesión' if bloqueado else '✅ Sin bloqueos detectados'}",
+                f"{'🚫 Bloqueo detectado' if bloqueado else '✅ Sin bloqueos'}",
                 title="Sesión Finalizada",
                 border_style="green" if not bloqueado else "yellow",
             ))
-            
+
         except Exception as e:
             console.print(f"[red]❌ Error durante el envío: {e}[/red]")
         finally:

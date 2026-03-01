@@ -3,13 +3,20 @@
 #  enviar_pendientes.py — Envía los prospectos pendientes
 #                         del CSV sin hacer nueva búsqueda
 # ============================================================
+#  100% AUTOMÁTICO — sin confirmaciones interactivas.
+#  Respeta la meta diaria y no repite contactos.
+# ============================================================
 
 import pandas as pd
 from rich.console import Console
 from rich.panel import Panel
 
 from whatsapp_sender import iniciar_envio_masivo
-from gestor_contactados import marcar_como_contactados
+from gestor_contactados import (
+    marcar_como_contactados,
+    contar_enviados_hoy,
+    calcular_faltantes_hoy,
+)
 from exportador import exportar_csv, exportar_excel
 import config
 
@@ -20,6 +27,20 @@ def main():
     # Sincronizar desde remoto antes de cargar datos
     from main import sincronizar_desde_remoto, subir_contactados_a_remoto
     sincronizar_desde_remoto()
+
+    # Verificar meta diaria
+    faltantes = calcular_faltantes_hoy()
+    enviados_hoy = contar_enviados_hoy()
+
+    if faltantes == 0:
+        console.print(Panel(
+            f"[bold green]🎉 META DIARIA COMPLETADA[/bold green]\n\n"
+            f"Ya se enviaron [bold]{enviados_hoy}/{config.MENSAJES_DIARIOS_META}[/bold] "
+            f"mensajes hoy.\n\n"
+            f"Ejecuta mañana para continuar.",
+            border_style="green",
+        ))
+        return
 
     # Cargar prospectos pendientes
     try:
@@ -34,8 +55,15 @@ def main():
         console.print("[yellow]⚠ No hay prospectos pendientes en prospectos.csv[/yellow]")
         return
 
+    # Limitar a los faltantes del día
+    pendientes = pendientes[:faltantes]
+
     console.print(Panel(
         f"[bold cyan]📋 PROSPECTOS PENDIENTES EN CSV[/bold cyan]\n\n"
+        f"Enviados hoy: [bold]{enviados_hoy}[/bold]\n"
+        f"Faltan: [bold]{faltantes}[/bold] para la meta de "
+        f"[bold]{config.MENSAJES_DIARIOS_META}[/bold]\n"
+        f"Pendientes a enviar: [bold]{len(pendientes)}[/bold]\n\n"
         + "\n".join(
             f"  {i+1}. {p['Nombre']} — {p['Telefono_Limpio']}"
             for i, p in enumerate(pendientes)
@@ -72,11 +100,13 @@ def main():
 
     enviados = len([p for p in pendientes_enviados if p.get("Estado") == "Enviado"])
     fallidos = len([p for p in pendientes_enviados if str(p.get("Estado", "")).startswith("Fallido")])
+    total_hoy = contar_enviados_hoy()
 
     console.print(Panel(
         f"[bold green]🎉 ENVÍO COMPLETADO[/bold green]\n\n"
-        f"✅ Enviados: {enviados}\n"
-        f"❌ Fallidos: {fallidos}",
+        f"✅ Enviados esta sesión: {enviados}\n"
+        f"❌ Fallidos: {fallidos}\n"
+        f"📊 Total enviados hoy: {total_hoy}/{config.MENSAJES_DIARIOS_META}",
         border_style="green",
     ))
 
