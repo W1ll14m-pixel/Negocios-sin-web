@@ -131,18 +131,22 @@ TIMEOUT_ELEMENTO = 15000
 
 # --- Plantilla del mensaje personalizado ---
 PLANTILLA_MENSAJE = (
-    "Hola *{nombre_negocio}* 👋\n\n"
-    "Los encontré en Google Maps aquí:\n"
+    "Estimados *{nombre_negocio}*, un cordial saludo.\n\n"
+    "Me pongo en contacto con ustedes tras encontrar su ubicación a través de Google Maps:\n"
     "📍 {link_maps}\n\n"
-    "Noté que no tienen página web y me gustaría ofrecerles "
-    "crear una *página web profesional* para su negocio.\n\n"
-    "✅ Diseño moderno y adaptado a celulares\n"
-    "✅ Aparece en Google cuando busquen su negocio\n"
-    "✅ Catálogo de productos/servicios\n"
-    "✅ Botón de contacto directo por WhatsApp\n"
-    "✅ *Incluye subida al internet* (hosting)\n\n"
-    "💰 Precio: *500 Bs* (negociable) — todo incluido.\n\n"
-    "¿Les interesaría que les muestre algunos ejemplos? 😊"
+    "He notado que actualmente no cuentan con un sitio web. Me gustaría ofrecerles mis servicios "
+    "para desarrollar una página web profesional, ideal para proyectar una imagen sólida de su negocio.\n\n"
+    "El servicio incluye:\n"
+    "✅ *Diseño moderno y responsivo:* Completamente adaptado para verse bien tanto en celulares como en computadoras.\n"
+    "✅ *Presencia digital:* Su página estará publicada, activa y accesible en internet a través de un enlace propio.\n"
+    "✅ *Catálogo integrado:* Una sección dedicada a mostrar sus productos o servicios de forma clara.\n"
+    "✅ *Contacto ágil:* Botón de redirección directa para que los clientes les escriban a su WhatsApp.\n"
+    "✅ *Gestión técnica:* El servicio incluye la subida a internet y la configuración del alojamiento (hosting).\n\n"
+    "💰 *Inversión:* El costo del servicio es de *250 Bs*, el cual incluye todo lo mencionado anteriormente.\n\n"
+    "¿Me permitirían enviarles algunos ejemplos de mi trabajo sin ningún compromiso de su parte? "
+    "Quedo atento a su respuesta.\n\n"
+    "Atentamente,\n"
+    "William Lujan Arispe"
 )
 
 # --- Archivo de salida ---
