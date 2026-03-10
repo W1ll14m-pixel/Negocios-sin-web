@@ -107,6 +107,9 @@ echo "Iniciando sistema..."
 echo ""
 "$PYTHON_VENV" main.py
 
+# ── Guardar cambios y subir al repositorio remoto ──
+bash "$DIR/git_sync.sh" || true
+
 # ── Mostrar resultado y esperar ──
 echo ""
 echo "============================================"

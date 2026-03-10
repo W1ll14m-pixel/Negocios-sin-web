@@ -1,8 +1,8 @@
 [Desktop Entry]
 Name=Prospección Sin Web
 Comment=Sistema automático de prospección — 20 mensajes/día
-Exec=bash -c 'cd /home/will/Escritorio/sinweb/Negocios-sin-web && ./ejecutar.sh; exec bash'
-Terminal=true
+Exec=gnome-terminal -- /home/wlujan/Escritorio/SINPAGINASWEBSISTEMA/ejecutar.sh
+Terminal=false
 Type=Application
 Icon=utilities-terminal
 Categories=Utility;

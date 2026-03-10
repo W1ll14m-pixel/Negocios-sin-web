@@ -269,8 +269,13 @@ def enviar_mensaje_individual(page: Page, telefono: str, mensaje: str) -> dict:
             return {"exito": False, "motivo": "Timeout al cargar WhatsApp Web"}
         except Exception as e:
             error_str = str(e)
-            # Detectar corte de internet
-            if "ERR_NAME_NOT_RESOLVED" in error_str or "ERR_INTERNET_DISCONNECTED" in error_str or "ERR_NETWORK_CHANGED" in error_str:
+            # Detectar corte de internet o error de red transitorio
+            errores_red = [
+                "ERR_NAME_NOT_RESOLVED", "ERR_INTERNET_DISCONNECTED",
+                "ERR_NETWORK_CHANGED", "ERR_TIMED_OUT",
+                "ERR_CONNECTION_RESET", "ERR_ABORTED",
+            ]
+            if any(err in error_str for err in errores_red):
                 console.print(f"  [red]🔌 Internet perdido (intento {intento + 1}/{max_reintentos})[/red]")
                 if _esperar_internet():
                     # Recargar WhatsApp Web antes de reintentar
@@ -282,6 +287,13 @@ def enviar_mensaje_individual(page: Page, telefono: str, mensaje: str) -> dict:
                     continue  # Reintentar el envío
                 else:
                     return {"exito": False, "motivo": "Sin internet — conexión no restaurada"}
+            # Detectar navegador cerrado
+            indicadores_cerrado = [
+                "browser has been closed", "context has been closed",
+                "target closed", "target page", "protocol error",
+            ]
+            if any(ind in error_str.lower() for ind in indicadores_cerrado):
+                return {"exito": False, "motivo": "Navegador cerrado"}
             return {"exito": False, "motivo": f"Error inesperado: {e}"}
 
     return {"exito": False, "motivo": "Máximo de reintentos alcanzado"}
@@ -454,6 +466,14 @@ def iniciar_envio_masivo(prospectos: list[dict]) -> list[dict]:
                     console.print(f"  [red]❌ FALLIDO — {resultado['motivo']}[/red]")
                     # Guardar fallido también para no reintentar
                     guardar_contactado_individual(prospecto)
+
+                    # Si el navegador se cerró o nos quedamos sin internet, parar
+                    if "Navegador cerrado" in resultado["motivo"]:
+                        console.print("[red]❌ Navegador cerrado. Deteniendo envío.[/red]")
+                        break
+                    if "Sin internet" in resultado["motivo"]:
+                        console.print("[red]❌ Sin internet. Deteniendo envío.[/red]")
+                        break
 
                 # Pausas
                 if enviados < max_esta_sesion:

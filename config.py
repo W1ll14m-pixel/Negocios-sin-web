@@ -131,22 +131,23 @@ TIMEOUT_ELEMENTO = 15000
 
 # --- Plantilla del mensaje personalizado ---
 PLANTILLA_MENSAJE = (
-    "Estimados *{nombre_negocio}*, un cordial saludo.\n\n"
+    "Estimados {nombre_negocio}, un cordial saludo.\n\n"
     "Me pongo en contacto con ustedes tras encontrar su ubicación a través de Google Maps:\n"
     "📍 {link_maps}\n\n"
-    "He notado que actualmente no cuentan con un sitio web. Me gustaría ofrecerles mis servicios "
-    "para desarrollar una página web profesional, ideal para proyectar una imagen sólida de su negocio.\n\n"
+    "He notado que actualmente no cuentan con un sitio web. Me gustaría poner a su disposición "
+    "mis servicios para el desarrollo de una página web profesional, ideal para proyectar una "
+    "mejor imagen de su negocio a sus clientes.\n\n"
     "El servicio incluye:\n"
-    "✅ *Diseño moderno y responsivo:* Completamente adaptado para verse bien tanto en celulares como en computadoras.\n"
-    "✅ *Presencia digital:* Su página estará publicada, activa y accesible en internet a través de un enlace propio.\n"
-    "✅ *Catálogo integrado:* Una sección dedicada a mostrar sus productos o servicios de forma clara.\n"
-    "✅ *Contacto ágil:* Botón de redirección directa para que los clientes les escriban a su WhatsApp.\n"
+    "✅ *Diseño moderno y responsivo:* Completamente adaptado para verse bien en celulares y computadoras.\n"
+    "✅ *Presencia digital:* Su página estará publicada, activa y accesible en internet a través de un enlace directo.\n"
+    "✅ *Catálogo integrado:* Una sección dedicada a mostrar sus productos o servicios de forma atractiva.\n"
+    "✅ *Contacto ágil:* Botón de redirección directa para que los clientes les escriban a WhatsApp.\n"
     "✅ *Gestión técnica:* El servicio incluye la subida a internet y la configuración del alojamiento (hosting).\n\n"
-    "💰 *Inversión:* El costo del servicio es de *250 Bs*, el cual incluye todo lo mencionado anteriormente.\n\n"
-    "¿Me permitirían enviarles algunos ejemplos de mi trabajo sin ningún compromiso de su parte? "
+    "👔 *Promoción Especial por el Mes del Padre:* Para apoyar a los negocios durante este mes, "
+    "estoy ofreciendo la creación y configuración completa de la página por un pago único promocional de *200 Bs*.\n\n"
+    "¿Me permitirían enviarles algunos ejemplos de mi trabajo sin ningún tipo de compromiso? "
     "Quedo atento a su respuesta.\n\n"
-    "Atentamente,\n"
-    "William Lujan Arispe"
+    "Atentamente, William Lujan Arispe"
 )
 
 # --- Archivo de salida ---

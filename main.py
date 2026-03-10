@@ -22,7 +22,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 # Módulos propios
-from scraper_maps import buscar_negocios
+from scraper_maps import buscar_negocios, crear_navegador_maps, cerrar_navegador, buscar_en_pagina
 from generador_mensajes import procesar_prospectos
 from exportador import exportar_csv, exportar_excel, mostrar_resumen
 from whatsapp_sender import iniciar_envio_masivo
@@ -205,7 +205,9 @@ def mostrar_config(ciudad: str, faltantes: int):
 def busqueda_automatica(ciudad: str, limite: int) -> list[dict]:
     """
     Busca negocios SIN web hasta alcanzar el límite.
-    Multi-ciudad, aleatoriza categorías, salta agotadas.
+    Usa UN SOLO navegador para todas las búsquedas (más rápido y estable).
+    Detecta errores de red y navegador cerrado, y se recupera automáticamente.
+    Solo marca una categoría como buscada si la búsqueda fue exitosa.
     """
     todos_los_prospectos = []
 
@@ -220,60 +222,152 @@ def busqueda_automatica(ciudad: str, limite: int) -> list[dict]:
     console.print(f"\n[bold yellow]🚀 BÚSQUEDA AUTOMÁTICA: {limite} negocios en {ciudad}[/bold yellow]")
     console.print(f"[cyan]   {total_categorias} categorías disponibles[/cyan]\n")
 
-    categoria_idx = 0
-    while len(todos_los_prospectos) < limite and categoria_idx < total_categorias:
-        categoria = categorias[categoria_idx]
-        termino = f"{categoria} en {ciudad}"
+    # ── Abrir navegador UNA VEZ para todas las búsquedas ──
+    pw, browser, context, page = None, None, None, None
+    navegador_abierto = False
 
-        console.print(Panel(
-            f"[bold cyan]🔍 [{categoria_idx + 1}/{total_categorias}] {termino}[/bold cyan]\n"
-            f"[dim]Encontrados: {len(todos_los_prospectos)}/{limite}[/dim]",
-            border_style="cyan",
-        ))
+    def abrir():
+        nonlocal pw, browser, context, page, navegador_abierto
+        if navegador_abierto:
+            cerrar_navegador(pw, browser, context)
+        pw, browser, context, page = crear_navegador_maps()
+        navegador_abierto = True
+        console.print("[green]✅ Navegador abierto.[/green]")
 
-        try:
-            faltantes = limite - len(todos_los_prospectos)
-            cantidad_a_buscar = min(config.CANTIDAD_POR_CATEGORIA, faltantes + 5)
+    def cerrar():
+        nonlocal navegador_abierto
+        if navegador_abierto:
+            cerrar_navegador(pw, browser, context)
+            navegador_abierto = False
 
-            negocios = buscar_negocios(termino, cantidad_a_buscar)
+    try:
+        abrir()
+    except Exception as e:
+        console.print(f"[red]❌ Error al abrir navegador: {e}[/red]")
+        return []
 
-            if negocios:
-                prospectos = procesar_prospectos(negocios)
-                prospectos_nuevos = filtrar_nuevos_prospectos(prospectos)
+    try:
+        categoria_idx = 0
+        while len(todos_los_prospectos) < limite and categoria_idx < total_categorias:
+            categoria = categorias[categoria_idx]
+            termino = f"{categoria} en {ciudad}"
 
-                if prospectos_nuevos:
-                    telefonos_sesion = {p["Telefono_Limpio"] for p in todos_los_prospectos}
-                    prospectos_nuevos = [
-                        p for p in prospectos_nuevos
-                        if p["Telefono_Limpio"] not in telefonos_sesion
-                    ]
+            console.print(Panel(
+                f"[bold cyan]🔍 [{categoria_idx + 1}/{total_categorias}] {termino}[/bold cyan]\n"
+                f"[dim]Encontrados: {len(todos_los_prospectos)}/{limite}[/dim]",
+                border_style="cyan",
+            ))
 
-                if prospectos_nuevos:
-                    todos_los_prospectos.extend(prospectos_nuevos)
-                    console.print(f"[green]✅ {len(prospectos_nuevos)} NUEVOS "
-                                  f"— Total: {len(todos_los_prospectos)}/{limite}[/green]\n")
+            # ── Reintentos por categoría (máx 3) ──
+            MAX_REINTENTOS = 3
+            categoria_ok = False
+
+            for intento in range(MAX_REINTENTOS):
+                # Asegurar que el navegador esté abierto
+                if not navegador_abierto:
+                    console.print("[yellow]🔄 Reabriendo navegador...[/yellow]")
+                    try:
+                        abrir()
+                    except Exception as e:
+                        console.print(f"[red]❌ No se pudo abrir navegador: {e}[/red]")
+                        time.sleep(10)
+                        continue
+
+                faltantes = limite - len(todos_los_prospectos)
+                cantidad_a_buscar = min(config.CANTIDAD_POR_CATEGORIA, faltantes + 5)
+
+                resultado = buscar_en_pagina(page, termino, cantidad_a_buscar)
+                negocios = resultado["negocios"]
+
+                # ── Procesar negocios encontrados (incluso si fue error parcial) ──
+                hay_nuevos = False
+                if negocios:
+                    prospectos = procesar_prospectos(negocios)
+                    prospectos_nuevos = filtrar_nuevos_prospectos(prospectos)
+
+                    if prospectos_nuevos:
+                        telefonos_sesion = {p["Telefono_Limpio"] for p in todos_los_prospectos}
+                        prospectos_nuevos = [
+                            p for p in prospectos_nuevos
+                            if p["Telefono_Limpio"] not in telefonos_sesion
+                        ]
+
+                    if prospectos_nuevos:
+                        todos_los_prospectos.extend(prospectos_nuevos)
+                        hay_nuevos = True
+                        console.print(f"[green]✅ {len(prospectos_nuevos)} NUEVOS "
+                                      f"— Total: {len(todos_los_prospectos)}/{limite}[/green]\n")
+
+                if resultado["exito"]:
+                    # ── Búsqueda completada exitosamente ──
+                    if not hay_nuevos:
+                        console.print("[yellow]⚠ Categoría agotada o sin resultados[/yellow]\n")
+                        marcar_categoria_buscada(categoria)
+                    categoria_ok = True
+                    break  # Siguiente categoría
+
                 else:
-                    console.print(f"[yellow]⚠ Categoría agotada[/yellow]\n")
-                    marcar_categoria_buscada(categoria)
-            else:
-                console.print(f"[yellow]⚠ Sin resultados[/yellow]\n")
-                marcar_categoria_buscada(categoria)
+                    # ── Búsqueda falló ──
+                    error_tipo = resultado["error_tipo"]
 
-        except KeyboardInterrupt:
-            console.print(f"\n[yellow]⚠ Búsqueda interrumpida[/yellow]")
-            break
-        except Exception as e:
-            console.print(f"[red]❌ Error: {e}[/red]\n")
+                    # Si ya obtuvimos resultados parciales, usarlos y seguir
+                    if hay_nuevos:
+                        console.print("[yellow]⚠ Búsqueda interrumpida pero se obtuvieron resultados.[/yellow]\n")
+                        categoria_ok = True
+                        if error_tipo == "navegador_cerrado":
+                            navegador_abierto = False
+                        break
 
-        if len(todos_los_prospectos) >= limite:
-            console.print(f"\n[green]✅ Meta alcanzada: {limite} negocios[/green]")
-            break
+                    # Sin resultados + error → reintentar según tipo de error
+                    if error_tipo == "red":
+                        console.print(f"[yellow]🔄 Error de red (intento {intento + 1}/{MAX_REINTENTOS})[/yellow]")
+                        if not esperar_conexion():
+                            break
+                        # Tras reconexión, reabrir navegador por seguridad
+                        cerrar()
+                        time.sleep(3)
+                        continue
 
-        categoria_idx += 1
+                    elif error_tipo == "navegador_cerrado":
+                        console.print(f"[yellow]🔄 Navegador cerrado (intento {intento + 1}/{MAX_REINTENTOS})[/yellow]")
+                        navegador_abierto = False
+                        time.sleep(5)
+                        continue
 
-        if categoria_idx < total_categorias:
-            pausa = random.uniform(5, 10)
-            time.sleep(pausa)
+                    elif error_tipo == "timeout":
+                        console.print(f"[yellow]🔄 Timeout (intento {intento + 1}/{MAX_REINTENTOS})[/yellow]")
+                        if not hay_internet():
+                            if not esperar_conexion():
+                                break
+                            cerrar()
+                            time.sleep(3)
+                        else:
+                            time.sleep(5)
+                        continue
+
+                    else:
+                        # Error desconocido — no reintentar, no marcar como buscada
+                        console.print("[yellow]⚠ Error desconocido. Saltando categoría.[/yellow]\n")
+                        break
+
+            if not categoria_ok:
+                # No marcar como buscada — se reintentará en el futuro
+                console.print(f"[yellow]⏭ '{categoria}' no procesada. Se reintentará luego.[/yellow]\n")
+
+            if len(todos_los_prospectos) >= limite:
+                console.print(f"\n[green]✅ Meta alcanzada: {limite} negocios[/green]")
+                break
+
+            categoria_idx += 1
+
+            if categoria_idx < total_categorias:
+                pausa = random.uniform(3, 6)
+                time.sleep(pausa)
+
+    except KeyboardInterrupt:
+        console.print(f"\n[yellow]⚠ Búsqueda interrumpida[/yellow]")
+    finally:
+        cerrar()
 
     todos_los_prospectos = todos_los_prospectos[:limite]
     return todos_los_prospectos
