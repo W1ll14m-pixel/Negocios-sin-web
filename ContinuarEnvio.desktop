@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Continuar Envío WhatsApp
+Comment=Retoma el envío interrumpido desde donde se quedó
+Exec=gnome-terminal -- /home/wlujan/Escritorio/SINPAGINASWEBSISTEMA/continuar_envio.sh
+Terminal=false
+Type=Application
+Icon=utilities-terminal
+Categories=Utility;
