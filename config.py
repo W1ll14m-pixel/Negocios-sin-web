@@ -8,7 +8,7 @@ CODIGO_PAIS = "591"
 # --- META DIARIA DE MENSAJES ---
 # El sistema completará esta cantidad cada vez que se ejecute,
 # descontando los que ya se enviaron hoy.
-MENSAJES_DIARIOS_META = 50
+MENSAJES_DIARIOS_META = 35
 
 # --- Cantidad de negocios a buscar por cada categoría ---
 CANTIDAD_POR_CATEGORIA = 5
