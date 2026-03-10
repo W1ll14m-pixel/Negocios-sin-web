@@ -55,6 +55,19 @@ def main():
         console.print("[yellow]⚠ No hay prospectos pendientes en prospectos.csv[/yellow]")
         return
 
+    # Cruzar con contactados.csv para excluir los que ya se procesaron
+    # aunque prospectos.csv todavía los muestre como "Pendiente"
+    # (ocurre cuando el sistema se interrumpió a mitad del envío)
+    from gestor_contactados import filtrar_nuevos_prospectos
+    total_antes = len(pendientes)
+    pendientes = filtrar_nuevos_prospectos(pendientes)
+    ya_procesados = total_antes - len(pendientes)
+    if ya_procesados > 0:
+        console.print(
+            f"[dim]⚡ {ya_procesados} contacto(s) omitido(s): ya fueron procesados "
+            f"en la sesión anterior.[/dim]"
+        )
+
     # Limitar a los faltantes del día
     pendientes = pendientes[:faltantes]
 
