@@ -475,8 +475,30 @@ def iniciar_envio_masivo(prospectos: list[dict]) -> list[dict]:
                         console.print("[red]❌ Sin internet. Deteniendo envío.[/red]")
                         break
 
-                # Pausas
-                if enviados < max_esta_sesion:
+                    # Si el navegador se cerró o nos quedamos sin internet, parar
+                    if "Navegador cerrado" in resultado["motivo"]:
+                        console.print("[red]❌ Navegador cerrado. Deteniendo envío.[/red]")
+                        break
+                    if "Sin internet" in resultado["motivo"]:
+                        console.print("[red]❌ Sin internet. Deteniendo envío.[/red]")
+                        break
+
+                # Pausas — se omiten si el fallo fue por número sin WhatsApp
+                _motivo_lower = resultado["motivo"].lower()
+                _sin_whatsapp = not resultado["exito"] and any(
+                    x in _motivo_lower for x in [
+                        "no tiene whatsapp",
+                        "sin whatsapp",
+                        "posible número sin whatsapp",
+                        "número no tiene",
+                        "invalid phone",
+                        "inválido",
+                    ]
+                )
+
+                if _sin_whatsapp:
+                    console.print("  [dim]⚡ Sin pausa (número sin WhatsApp)[/dim]")
+                elif enviados < max_esta_sesion:
                     if enviados > 0 and enviados % MENSAJES_ANTES_PAUSA_LARGA == 0:
                         console.print(f"\n[yellow]⏸  Pausa larga (cada {MENSAJES_ANTES_PAUSA_LARGA} mensajes)...[/yellow]")
                         _pausa_humana(PAUSA_LARGA_MIN, PAUSA_LARGA_MAX,
