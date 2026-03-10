@@ -11,6 +11,20 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# ── Descargar últimos cambios del repositorio remoto ──
+if command -v git &>/dev/null && git rev-parse --git-dir &>/dev/null; then
+    REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
+    if [ -n "$REMOTE_URL" ]; then
+        echo "🔄 Sincronizando con repositorio remoto..."
+        if git pull --rebase origin "$(git rev-parse --abbrev-ref HEAD)" 2>&1; then
+            echo "✅ Código actualizado."
+        else
+            echo "⚠️  No se pudo descargar (sin conexión o conflicto). Continuando con versión local."
+        fi
+        echo ""
+    fi
+fi
+
 # Verificar que existe el entorno virtual
 if [ ! -f "venv/bin/python3" ]; then
     echo "❌ No se encontró el entorno virtual. Ejecutando setup..."
