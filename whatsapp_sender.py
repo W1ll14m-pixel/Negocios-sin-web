@@ -29,8 +29,8 @@ WHATSAPP_SESSION_DIR = os.path.join(os.path.dirname(__file__), "whatsapp_session
 PAUSA_ENTRE_MENSAJES_MIN = 45    # Segundos mínimo entre mensajes
 PAUSA_ENTRE_MENSAJES_MAX = 120   # Segundos máximo entre mensajes
 MENSAJES_ANTES_PAUSA_LARGA = 5   # Cada N mensajes, pausa larga
-PAUSA_LARGA_MIN = 300            # 5 minutos mínimo de pausa larga
-PAUSA_LARGA_MAX = 600            # 10 minutos máximo de pausa larga
+PAUSA_LARGA_MIN = 60             # 1 minuto mínimo de pausa larga
+PAUSA_LARGA_MAX = 60             # 1 minuto máximo de pausa larga
 MAX_MENSAJES_POR_SESION = 50     # Máximo mensajes por sesión antes de parar
 PAUSA_ENTRE_SESIONES = 3600      # 1 hora entre sesiones
 
