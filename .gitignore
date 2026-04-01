@@ -20,8 +20,10 @@ contactados.json
 whatsapp_session/
 
 # IDE
-.vscode/
 .idea/
+# Solo ignorar configuraciones locales de VS Code, no las de workspace compartido
+.vscode/*.code-snippets
+.vscode/launch.json
 
 # OS
 .DS_Store
